@@ -107,6 +107,18 @@ class FileListWidget(QWidget):
         back_shortcut = QShortcut(QKeySequence("Ctrl+Backspace"), self)
         back_shortcut.activated.connect(self.backRequested)
 
+    def set_theme(self, color_scheme):
+        """Set the stylesheet for hover effect based on the theme."""
+        if color_scheme == Qt.ColorScheme.Dark:
+            hover_color = "#404040"  # Slightly lighter for dark mode
+        else:
+            hover_color = "#e0e0e0"  # Slightly darker for light mode
+        self.listWidget.setStyleSheet(f"""
+            QListWidget::item:hover {{
+                background-color: {hover_color};
+            }}
+        """)
+
     def create_file_item(self, file_name, file_path):
         """Create a QListWidgetItem for a file with its corresponding icon."""
         item = QListWidgetItem(file_name)
@@ -258,7 +270,7 @@ class FileListWidget(QWidget):
         for file in removed_files:
             for i in range(self.listWidget.count()):
                 item = self.listWidget.item(i)
-                if item.data(ItemTypeRole) == "file" and item.text() == file:
+                if item.data(ItemTypeRole) == "file" and item.text() == file:                     
                     self.listWidget.takeItem(i)
                     break
 
@@ -341,6 +353,9 @@ class MainWindow(QMainWindow):
                 palette.setColor(QPalette.Base, QColor("#f0f0f0"))
                 palette.setColor(QPalette.Text, Qt.black)
         QApplication.instance().setPalette(palette)
+        
+        # Apply theme to FileListWidget
+        self.fileListWidget.set_theme(color_scheme)
 
     def onFolderSelected(self, folder_path):
         self.fileListWidget.setFolderPath(folder_path)
