@@ -1,10 +1,10 @@
 import sys
 import os
 import yaml
-from PySide6.QtCore import Qt, QUrl, QDir, Signal, QFileSystemWatcher
+from PySide6.QtCore import Qt, QUrl, QDir, Signal, QFileSystemWatcher, QFileInfo, QSize
 from PySide6.QtGui import QFont, QShortcut, QKeySequence, QDragEnterEvent, QDropEvent, QDesktopServices, QPixmap, QIcon, QPalette, QColor
 from PySide6.QtWidgets import (QApplication, QMainWindow, QStackedWidget, QWidget, QVBoxLayout, 
-                              QLabel, QPushButton, QListWidget, QListWidgetItem, QFileDialog, QHBoxLayout, QStyle)
+                              QLabel, QPushButton, QListWidget, QListWidgetItem, QFileDialog, QHBoxLayout, QStyle, QFileIconProvider)
 
 # Custom roles for QListWidgetItem data
 ItemTypeRole = Qt.UserRole + 1
@@ -83,11 +83,13 @@ class FileListWidget(QWidget):
         self.folder_path = None
         self.watcher = QFileSystemWatcher(self)
         self.watcher.directoryChanged.connect(self.handle_folder_change)
+        self.icon_provider = QFileIconProvider()  # Initialize icon provider
         self.initUI()
 
     def initUI(self):
         self.listWidget = QListWidget()
         self.listWidget.setDragDropMode(QListWidget.InternalMove)
+        self.listWidget.setIconSize(QSize(24, 24))  # Set icon size for consistency
 
         main_layout = QVBoxLayout()
         main_layout.addWidget(self.listWidget)
@@ -104,6 +106,16 @@ class FileListWidget(QWidget):
 
         back_shortcut = QShortcut(QKeySequence("Ctrl+Backspace"), self)
         back_shortcut.activated.connect(self.backRequested)
+
+    def create_file_item(self, file_name, file_path):
+        """Create a QListWidgetItem for a file with its corresponding icon."""
+        item = QListWidgetItem(file_name)
+        item.setData(ItemTypeRole, "file")
+        item.setData(FilePathRole, file_path)
+        file_info = QFileInfo(file_path)
+        icon = self.icon_provider.icon(file_info)
+        item.setIcon(icon)
+        return item
 
     def setFolderPath(self, folder_path):
         self.folder_path = folder_path
@@ -133,9 +145,7 @@ class FileListWidget(QWidget):
                         for file in section["files"]:
                             file_path = os.path.join(folder_path, file)
                             if os.path.exists(file_path):
-                                item = QListWidgetItem(file)
-                                item.setData(ItemTypeRole, "file")
-                                item.setData(FilePathRole, file_path)
+                                item = self.create_file_item(file, file_path)
                                 self.listWidget.addItem(item)
             except Exception:
                 pass
@@ -163,9 +173,7 @@ class FileListWidget(QWidget):
             self.listWidget.addItem(header_item)
             for file in files:
                 file_path = os.path.join(folder_path, file)
-                item = QListWidgetItem(file)
-                item.setData(ItemTypeRole, "file")
-                item.setData(FilePathRole, file_path)
+                item = self.create_file_item(file, file_path)
                 self.listWidget.addItem(item)
 
         if self.watcher.directories():
@@ -263,10 +271,8 @@ class FileListWidget(QWidget):
             insert_pos = self.listWidget.count()
 
         for file in added_files:
-            item = QListWidgetItem(file)
-            item.setData(ItemTypeRole, "file")
             file_path = os.path.join(self.folder_path, file)
-            item.setData(FilePathRole, file_path)
+            item = self.create_file_item(file, file_path)
             self.listWidget.insertItem(insert_pos, item)
             insert_pos += 1
 
