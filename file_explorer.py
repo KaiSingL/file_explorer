@@ -40,7 +40,6 @@ class ImportFolderWidget(QWidget):
 
         self.button.clicked.connect(self.selectFolder)
 
-        # Set initial icon based on current palette
         self.update_icon(QApplication.instance().palette())
 
     def update_icon(self, palette):
@@ -83,13 +82,13 @@ class FileListWidget(QWidget):
         self.folder_path = None
         self.watcher = QFileSystemWatcher(self)
         self.watcher.directoryChanged.connect(self.handle_folder_change)
-        self.icon_provider = QFileIconProvider()  # Initialize icon provider
+        self.icon_provider = QFileIconProvider()
         self.initUI()
 
     def initUI(self):
         self.listWidget = QListWidget()
         self.listWidget.setDragDropMode(QListWidget.InternalMove)
-        self.listWidget.setIconSize(QSize(24, 24))  # Set icon size for consistency
+        self.listWidget.setIconSize(QSize(24, 24))
 
         main_layout = QVBoxLayout()
         main_layout.addWidget(self.listWidget)
@@ -108,11 +107,10 @@ class FileListWidget(QWidget):
         back_shortcut.activated.connect(self.backRequested)
 
     def set_theme(self, color_scheme):
-        """Set the stylesheet for hover effect based on the theme."""
         if color_scheme == Qt.ColorScheme.Dark:
-            hover_color = "#404040"  # Slightly lighter for dark mode
+            hover_color = "#404040"
         else:
-            hover_color = "#e0e0e0"  # Slightly darker for light mode
+            hover_color = "#e0e0e0"
         self.listWidget.setStyleSheet(f"""
             QListWidget::item:hover {{
                 background-color: {hover_color};
@@ -120,7 +118,6 @@ class FileListWidget(QWidget):
         """)
 
     def create_file_item(self, file_name, file_path):
-        """Create a QListWidgetItem for a file with its corresponding icon."""
         item = QListWidgetItem(file_name)
         item.setData(ItemTypeRole, "file")
         item.setData(FilePathRole, file_path)
@@ -128,6 +125,75 @@ class FileListWidget(QWidget):
         icon = self.icon_provider.icon(file_info)
         item.setIcon(icon)
         return item
+
+    def create_header_item(self, header_text):
+        item_widget = QWidget()
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        label = QLabel(header_text)
+        font = QFont()
+        font.setPointSize(16)
+        font.setBold(True)
+        label.setFont(font)
+
+        delete_button = QPushButton("⨯")
+        delete_button.setFixedSize(20, 20)
+        delete_button.setStyleSheet("""
+            QPushButton {
+                border: none;
+            }
+            QPushButton:pressed {
+                border: 1px solid gray;
+            }
+        """)
+        delete_button.clicked.connect(lambda: self.delete_header(item_widget))
+
+        layout.addWidget(label)
+        layout.addStretch()
+        layout.addWidget(delete_button)
+        item_widget.setLayout(layout)
+
+        item = QListWidgetItem()
+        item.setData(ItemTypeRole, "header")
+        item.setSizeHint(item_widget.sizeHint())
+        self.listWidget.addItem(item)
+        self.listWidget.setItemWidget(item, item_widget)
+        return item
+
+    def delete_header(self, item_widget):
+        for i in range(self.listWidget.count()):
+            item = self.listWidget.item(i)
+            if self.listWidget.itemWidget(item) == item_widget:
+                start_idx = i
+                end_idx = i + 1
+                while end_idx < self.listWidget.count() and self.listWidget.item(end_idx).data(ItemTypeRole) == "file":
+                    end_idx += 1
+
+                # Collect files to move
+                num_files = end_idx - start_idx - 1
+                files_to_move = []
+                for _ in range(num_files):
+                    item = self.listWidget.takeItem(start_idx + 1)
+                    files_to_move.append(item)
+
+                # Remove the header
+                self.listWidget.takeItem(start_idx)
+
+                # Find target position
+                target_pos = 0
+                for j in range(start_idx - 1, -1, -1):
+                    if self.listWidget.item(j).data(ItemTypeRole) == "header":
+                        target_pos = j + 1
+                        break
+
+                # Insert files at target position
+                for file_item in files_to_move:
+                    self.listWidget.insertItem(target_pos, file_item)
+                    target_pos += 1
+
+                self.save_yaml()
+                break
 
     def setFolderPath(self, folder_path):
         self.folder_path = folder_path
@@ -139,21 +205,10 @@ class FileListWidget(QWidget):
                 with open(yaml_path, "r", encoding="utf-8") as f:
                     data = yaml.safe_load(f)
                     file_groups = data.get("file_groups", {})
-                    first_header = True
-                    for key in sorted(file_groups.keys(), key=lambda x: (x != "top", x)):
+                    for key in sorted(file_groups.keys(), key=lambda x: (x != "default", x)):
                         section = file_groups[key]
-                        header_item = QListWidgetItem(section["header"])
-                        header_item.setData(ItemTypeRole, "header")
-                        font = QFont()
-                        if first_header:
-                            font.setPointSize(18)
-                            first_header = False
-                        else:
-                            font.setPointSize(16)
-                        font.setBold(True)
-                        header_item.setFont(font)
-                        header_item.setFlags(header_item.flags() | Qt.ItemIsEditable)
-                        self.listWidget.addItem(header_item)
+                        if key != "default":
+                            self.create_header_item(section["header"])
                         for file in section["files"]:
                             file_path = os.path.join(folder_path, file)
                             if os.path.exists(file_path):
@@ -167,22 +222,14 @@ class FileListWidget(QWidget):
             files = [f for f in dir.entryList(QDir.Files) if f != "file_groups.yaml"]
             data = {
                 "file_groups": {
-                    "top": {
-                        "header": "default section",
+                    "default": {
+                        "header": "",
                         "files": files
                     }
                 }
             }
             with open(yaml_path, "w", encoding="utf-8") as f:
                 yaml.dump(data, f, allow_unicode=True, sort_keys=False)
-            header_item = QListWidgetItem("default section")
-            header_item.setData(ItemTypeRole, "header")
-            font = QFont()
-            font.setPointSize(18)
-            font.setBold(True)
-            header_item.setFont(font)
-            header_item.setFlags(header_item.flags() | Qt.ItemIsEditable)
-            self.listWidget.addItem(header_item)
             for file in files:
                 file_path = os.path.join(folder_path, file)
                 item = self.create_file_item(file, file_path)
@@ -196,14 +243,8 @@ class FileListWidget(QWidget):
         self.handle_folder_change()
 
     def add_header(self):
-        item = QListWidgetItem("New Header")
-        item.setData(ItemTypeRole, "header")
-        font = QFont()
-        font.setPointSize(16)
-        font.setBold(True)
-        item.setFont(font)
-        item.setFlags(item.flags() | Qt.ItemIsEditable)
-        self.listWidget.addItem(item)
+        self.create_header_item("New Header")
+        self.save_yaml()
 
     def onItemDoubleClicked(self, item):
         if item.data(ItemTypeRole) == "file":
@@ -214,35 +255,42 @@ class FileListWidget(QWidget):
         if not self.folder_path:
             return
         file_groups = {}
-        section_index = 0
-        current_section = "top"
-        current_header = "default section"
+        current_section = "default"
+        current_header = ""
         current_files = []
-        in_top_section = True
+        section_index = 0
+
+        file_groups["default"] = {"header": "", "files": []}
 
         for i in range(self.listWidget.count()):
             item = self.listWidget.item(i)
-            if item.data(ItemTypeRole) == "header":
-                if in_top_section:
-                    if current_files:
-                        file_groups[current_section] = {
-                            "header": current_header,
-                            "files": current_files
-                        }
-                    in_top_section = False
+            item_type = item.data(ItemTypeRole)
+            if item_type == "header":
+                widget = self.listWidget.itemWidget(item)
+                if widget:
+                    label = widget.findChild(QLabel)
+                    if label:
+                        if current_files:  # Save the previous section if it has files
+                            file_groups[current_section] = {
+                                "header": current_header,
+                                "files": current_files
+                            }
+                        current_header = label.text()
+                        current_files = []
+                        section_index += 1
+                        current_section = str(section_index)
+                    else:
+                        print(f"Warning: Header item at row {i} has no QLabel")
+                        continue
                 else:
-                    file_groups[current_section] = {
-                        "header": current_header,
-                        "files": current_files
-                    }
-                current_header = item.text()
-                current_files = []
-                section_index += 1
-                current_section = str(section_index)
-            elif item.data(ItemTypeRole) == "file":
+                    print(f"Warning: Header item at row {i} has no widget")
+                    continue
+            elif item_type == "file":
                 current_files.append(item.text())
+            else:
+                print(f"Warning: Item at row {i} has unknown type: {item_type}")
 
-        if not in_top_section or current_files:
+        if current_files:  # Save the last section
             file_groups[current_section] = {
                 "header": current_header,
                 "files": current_files
@@ -270,17 +318,15 @@ class FileListWidget(QWidget):
         for file in removed_files:
             for i in range(self.listWidget.count()):
                 item = self.listWidget.item(i)
-                if item.data(ItemTypeRole) == "file" and item.text() == file:                     
+                if item.data(ItemTypeRole) == "file" and item.text() == file:
                     self.listWidget.takeItem(i)
                     break
 
         insert_pos = 0
         for i in range(self.listWidget.count()):
             if self.listWidget.item(i).data(ItemTypeRole) == "header":
-                insert_pos = i
                 break
-        else:
-            insert_pos = self.listWidget.count()
+            insert_pos += 1
 
         for file in added_files:
             file_path = os.path.join(self.folder_path, file)
@@ -303,7 +349,6 @@ class MainWindow(QMainWindow):
         self.apply_system_theme()
         QApplication.instance().styleHints().colorSchemeChanged.connect(self.apply_system_theme)
 
-        # Set application icon
         app_icon = QIcon("assets/AppIcon.png")
         self.setWindowIcon(app_icon)
 
@@ -354,7 +399,6 @@ class MainWindow(QMainWindow):
                 palette.setColor(QPalette.Text, Qt.black)
         QApplication.instance().setPalette(palette)
         
-        # Apply theme to FileListWidget
         self.fileListWidget.set_theme(color_scheme)
 
     def onFolderSelected(self, folder_path):
