@@ -282,12 +282,22 @@ class FileListWidget(QWidget):
                 edit.setFrame(False)
                 edit.selectAll()
                 edit.setFocusPolicy(Qt.StrongFocus)
-                edit.setFocus()
                 edit.editingFinished.connect(lambda: self.finish_editing_header(item, edit))
                 layout = widget.layout()
+                # Store the label's alignment
+                label_alignment = label.alignment()
+                # Replace the label with the line edit
                 layout.replaceWidget(label, edit)
                 label.setParent(None)
                 edit.setParent(widget)
+                # Match alignment and ensure minimum size
+                edit.setAlignment(label_alignment)
+                edit.setMinimumSize(label.sizeHint())
+                # Allow the line edit to stretch in the layout
+                layout.setStretchFactor(edit, layout.stretchFactor(label) if hasattr(layout, 'stretchFactor') else 1)
+                # Update size dynamically as text changes
+                edit.textChanged.connect(lambda: edit.setMinimumWidth(edit.sizeHint().width()))
+                edit.setFocus()  # Set focus last
             else:
                 print(f"Warning: Header item at row {self.listWidget.row(item)} has no QLabel")
 
