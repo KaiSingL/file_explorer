@@ -29,6 +29,7 @@ class ImportFolderWidget(QWidget):
 
         self.label = QLabel("Drag and drop a folder here or click the button to select a folder.")
         self.label.setAlignment(Qt.AlignCenter)
+        self.label.setWordWrap(True)  # Enable word wrapping
         layout.addWidget(self.label)
 
         self.button = QPushButton("Select Folder")
@@ -136,6 +137,7 @@ class FileListWidget(QWidget):
         font.setPointSize(16)
         font.setBold(True)
         label.setFont(font)
+        label.setWordWrap(True)  # Enable word wrapping for headers
 
         delete_button = QPushButton("×")
         delete_button.setFixedSize(20, 20)
@@ -286,6 +288,7 @@ class FileListWidget(QWidget):
             font.setPointSize(16)
             font.setBold(True)
             label.setFont(font)
+            label.setWordWrap(True)  # Ensure word wrapping for the new label
             layout.replaceWidget(edit, label)
             edit.setParent(None)
             label.setParent(widget)
@@ -415,7 +418,7 @@ class MainWindow(QMainWindow):
         self.stackedWidget.addWidget(self.fileListWidget)
         self.importFolderWidget.folderSelected.connect(self.onFolderSelected)
         self.fileListWidget.backRequested.connect(self.onBackRequested)
-        self.setWindowTitle("Simplified File Explorer")
+        self.setWindowTitle("File View")
         self.setGeometry(100, 100, 600, 400)
 
         # Create toolbar
