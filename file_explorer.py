@@ -2,9 +2,9 @@ import sys
 import os
 import yaml
 from PySide6.QtCore import Qt, QUrl, QDir, Signal, QFileSystemWatcher, QFileInfo, QSize
-from PySide6.QtGui import QFont, QShortcut, QKeySequence, QDragEnterEvent, QDropEvent, QDesktopServices, QPixmap, QIcon, QPalette, QColor
+from PySide6.QtGui import QFont, QShortcut, QKeySequence, QDragEnterEvent, QDropEvent, QDesktopServices, QPixmap, QIcon, QPalette, QColor, QAction
 from PySide6.QtWidgets import (QApplication, QMainWindow, QStackedWidget, QWidget, QVBoxLayout, 
-                              QLabel, QPushButton, QListWidget, QListWidgetItem, QFileDialog, QHBoxLayout, QStyle, QFileIconProvider)
+                              QLabel, QPushButton, QListWidget, QListWidgetItem, QFileDialog, QHBoxLayout, QStyle, QFileIconProvider, QToolBar, QSizePolicy, QLineEdit)
 
 # Custom roles for QListWidgetItem data
 ItemTypeRole = Qt.UserRole + 1
@@ -137,7 +137,7 @@ class FileListWidget(QWidget):
         font.setBold(True)
         label.setFont(font)
 
-        delete_button = QPushButton("⨯")
+        delete_button = QPushButton("×")
         delete_button.setFixedSize(20, 20)
         delete_button.setStyleSheet("""
             QPushButton {
@@ -250,6 +250,46 @@ class FileListWidget(QWidget):
         if item.data(ItemTypeRole) == "file":
             file_path = item.data(FilePathRole)
             QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+        elif item.data(ItemTypeRole) == "header":
+            self.edit_header_item(item)
+
+    def edit_header_item(self, item):
+        widget = self.listWidget.itemWidget(item)
+        if widget:
+            label = widget.findChild(QLabel)
+            if label:
+                # Create a QLineEdit to edit the header text
+                edit = QLineEdit(label.text())
+                edit.setFont(label.font())
+                edit.setFrame(False)
+                edit.selectAll()
+                edit.setFocusPolicy(Qt.StrongFocus)
+                edit.setFocus()
+                edit.editingFinished.connect(lambda: self.finish_editing_header(item, edit))
+                # Replace the label with the edit widget
+                layout = widget.layout()
+                layout.replaceWidget(label, edit)
+                label.setParent(None)
+                edit.setParent(widget)
+            else:
+                print(f"Warning: Header item at row {self.listWidget.row(item)} has no QLabel")
+
+    def finish_editing_header(self, item, edit):
+        new_text = edit.text().strip()
+        if not new_text:
+            new_text = "Unnamed Header"
+        widget = self.listWidget.itemWidget(item)
+        if widget:
+            layout = widget.layout()
+            label = QLabel(new_text)
+            font = QFont()
+            font.setPointSize(16)
+            font.setBold(True)
+            label.setFont(font)
+            layout.replaceWidget(edit, label)
+            edit.setParent(None)
+            label.setParent(widget)
+            self.save_yaml()
 
     def save_yaml(self):
         if not self.folder_path:
@@ -270,7 +310,7 @@ class FileListWidget(QWidget):
                 if widget:
                     label = widget.findChild(QLabel)
                     if label:
-                        if current_files:  # Save the previous section if it has files
+                        if current_files:
                             file_groups[current_section] = {
                                 "header": current_header,
                                 "files": current_files
@@ -280,8 +320,22 @@ class FileListWidget(QWidget):
                         section_index += 1
                         current_section = str(section_index)
                     else:
-                        print(f"Warning: Header item at row {i} has no QLabel")
-                        continue
+                        edit = widget.findChild(QLineEdit)
+                        if edit:
+                            if current_files:
+                                file_groups[current_section] = {
+                                    "header": current_header,
+                                    "files": current_files
+                                }
+                            current_header = edit.text().strip()
+                            if not current_header:
+                                current_header = "Unnamed Header"
+                            current_files = []
+                            section_index += 1
+                            current_section = str(section_index)
+                        else:
+                            print(f"Warning: Header item at row {i} has neither QLabel nor QLineEdit")
+                            continue
                 else:
                     print(f"Warning: Header item at row {i} has no widget")
                     continue
@@ -290,7 +344,7 @@ class FileListWidget(QWidget):
             else:
                 print(f"Warning: Item at row {i} has unknown type: {item_type}")
 
-        if current_files:  # Save the last section
+        if current_files:
             file_groups[current_section] = {
                 "header": current_header,
                 "files": current_files
@@ -363,6 +417,43 @@ class MainWindow(QMainWindow):
         self.fileListWidget.backRequested.connect(self.onBackRequested)
         self.setWindowTitle("Simplified File Explorer")
         self.setGeometry(100, 100, 600, 400)
+
+        # Create toolbar
+        self.toolbar = QToolBar()
+        self.addToolBar(self.toolbar)
+
+        # Create actions
+        self.back_action = QAction("<", self)
+        self.back_action.setToolTip("Back to folder selection")
+        self.add_header_action = QAction("+", self)
+        self.add_header_action.setToolTip("Add new header")
+
+        # Connect actions
+        self.back_action.triggered.connect(self.onBackRequested)
+        self.add_header_action.triggered.connect(self.fileListWidget.add_header)
+
+        # Add actions to toolbar with a spacer
+        self.toolbar.addAction(self.back_action)
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.toolbar.addWidget(spacer)
+        self.toolbar.addAction(self.add_header_action)
+
+        # Initially hide the toolbar
+        self.toolbar.setVisible(False)
+
+        # Connect stacked widget's currentChanged signal
+        self.stackedWidget.currentChanged.connect(self.updateToolbar)
+
+    def updateToolbar(self, index):
+        if index == 1:  # fileListWidget
+            self.toolbar.setVisible(True)
+            self.back_action.setEnabled(True)
+            self.add_header_action.setEnabled(True)
+        else:  # importFolderWidget
+            self.toolbar.setVisible(False)
+            self.back_action.setEnabled(False)
+            self.add_header_action.setEnabled(False)
 
     def apply_system_theme(self):
         style_hints = QApplication.instance().styleHints()
