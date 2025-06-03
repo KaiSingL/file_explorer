@@ -6,6 +6,20 @@ from PySide6.QtGui import QFont, QShortcut, QKeySequence, QDragEnterEvent, QDrop
 from PySide6.QtWidgets import (QApplication, QMainWindow, QStackedWidget, QWidget, QVBoxLayout, 
                               QLabel, QPushButton, QListWidget, QListWidgetItem, QFileDialog, QHBoxLayout, QStyle, QFileIconProvider, QToolBar, QSizePolicy, QLineEdit)
 
+# Base path for resources (handles both packaged and non-packaged scenarios)
+def resource_path(relative_path):
+    """Get absolute path to resource, works for dev and PyInstaller."""
+    if hasattr(sys, '_MEIPASS'):
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath(os.path.dirname(__file__)), relative_path)
+
+# Fix for taskbar icon on Windows
+if sys.platform == "win32":
+    import ctypes
+    myappid = 'com.mycompany.fileexplorer.1.0'  # Unique identifier
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+
 # Custom roles for QListWidgetItem data
 ItemTypeRole = Qt.UserRole + 1
 FilePathRole = Qt.UserRole + 2
@@ -29,7 +43,7 @@ class ImportFolderWidget(QWidget):
 
         self.label = QLabel("Drag and drop a folder here or click the button to select a folder.")
         self.label.setAlignment(Qt.AlignCenter)
-        self.label.setWordWrap(True)  # Enable word wrapping
+        self.label.setWordWrap(True)
         layout.addWidget(self.label)
 
         self.button = QPushButton("Select Folder")
@@ -44,14 +58,17 @@ class ImportFolderWidget(QWidget):
         self.update_icon(QApplication.instance().palette())
 
     def update_icon(self, palette):
+        # Load icons from assets folder using resource_path
         if palette.color(QPalette.Window).lightness() < 128:
-            icon_path = "assets/FolderIconDark.png"
+            icon_path = resource_path("assets/FolderIconDark.png")
         else:
-            icon_path = "assets/FolderIconLight.png"
+            icon_path = resource_path("assets/FolderIconLight.png")
         
         pixmap = QPixmap(icon_path)
         if pixmap.isNull():
+            # Fallback to system icon if loading fails
             pixmap = QApplication.style().standardPixmap(QStyle.SP_DirIcon)
+            print(f"Warning: Could not load icon at {icon_path}, using fallback.")
         
         self.icon_label.setPixmap(pixmap.scaled(128, 128, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
@@ -137,7 +154,7 @@ class FileListWidget(QWidget):
         font.setPointSize(16)
         font.setBold(True)
         label.setFont(font)
-        label.setWordWrap(True)  # Enable word wrapping for headers
+        label.setWordWrap(True)
 
         delete_button = QPushButton("×")
         delete_button.setFixedSize(20, 20)
@@ -260,7 +277,6 @@ class FileListWidget(QWidget):
         if widget:
             label = widget.findChild(QLabel)
             if label:
-                # Create a QLineEdit to edit the header text
                 edit = QLineEdit(label.text())
                 edit.setFont(label.font())
                 edit.setFrame(False)
@@ -268,7 +284,6 @@ class FileListWidget(QWidget):
                 edit.setFocusPolicy(Qt.StrongFocus)
                 edit.setFocus()
                 edit.editingFinished.connect(lambda: self.finish_editing_header(item, edit))
-                # Replace the label with the edit widget
                 layout = widget.layout()
                 layout.replaceWidget(label, edit)
                 label.setParent(None)
@@ -288,7 +303,7 @@ class FileListWidget(QWidget):
             font.setPointSize(16)
             font.setBold(True)
             label.setFont(font)
-            label.setWordWrap(True)  # Ensure word wrapping for the new label
+            label.setWordWrap(True)
             layout.replaceWidget(edit, label)
             edit.setParent(None)
             label.setParent(widget)
@@ -406,7 +421,11 @@ class MainWindow(QMainWindow):
         self.apply_system_theme()
         QApplication.instance().styleHints().colorSchemeChanged.connect(self.apply_system_theme)
 
-        app_icon = QIcon("assets/AppIcon.png")
+        # Set application icon
+        app_icon_path = resource_path("assets/AppIcon.ico")
+        app_icon = QIcon(app_icon_path)
+        if app_icon.isNull():
+            print(f"Warning: Could not load application icon at {app_icon_path}")
         self.setWindowIcon(app_icon)
 
     def initUI(self):
