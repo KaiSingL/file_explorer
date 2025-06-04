@@ -129,6 +129,7 @@ class FileListWidget(QWidget):
         model = self.listWidget.model()
         model.rowsInserted.connect(self.save_yaml)
         model.rowsMoved.connect(self.save_yaml)
+        model.rowsRemoved.connect(self.save_yaml)  # Connect rowsRemoved to save_yaml
         self.listWidget.itemChanged.connect(self.save_yaml)
 
         shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
@@ -351,56 +352,55 @@ class FileListWidget(QWidget):
         if not self.folder_path:
             return
         file_groups = {}
-        current_section = "default"
-        current_header = ""
-        current_files = []
         section_index = 0
-
-        file_groups["default"] = {"header": "", "files": []}
+        current_section = None
+        current_header = None
+        current_files = []
 
         for i in range(self.listWidget.count()):
             item = self.listWidget.item(i)
             item_type = item.data(ItemTypeRole)
             if item_type == "header":
+                if current_section is not None:
+                    # Save the previous section, even if it has no files
+                    file_groups[current_section] = {
+                        "header": current_header,
+                        "files": current_files
+                    }
+                # Start a new section
+                section_index += 1
+                current_section = str(section_index)
                 widget = self.listWidget.itemWidget(item)
                 if widget:
                     label = widget.findChild(QLabel)
                     if label:
-                        if current_files:
-                            file_groups[current_section] = {
-                                "header": current_header,
-                                "files": current_files
-                            }
                         current_header = label.text()
-                        current_files = []
-                        section_index += 1
-                        current_section = str(section_index)
                     else:
                         edit = widget.findChild(QLineEdit)
                         if edit:
-                            if current_files:
-                                file_groups[current_section] = {
-                                    "header": current_header,
-                                    "files": current_files
-                                }
                             current_header = edit.text().strip()
                             if not current_header:
                                 current_header = "Unnamed Header"
-                            current_files = []
-                            section_index += 1
-                            current_section = str(section_index)
                         else:
                             print(f"Warning: Header item at row {i} has neither QLabel nor QLineEdit")
-                            continue
+                            current_header = "Unnamed Header"
                 else:
                     print(f"Warning: Header item at row {i} has no widget")
-                    continue
+                    current_header = "Unnamed Header"
+                current_files = []
             elif item_type == "file":
-                current_files.append(item.text())
+                if current_section is None:
+                    # Files before any header go to "default"
+                    if "default" not in file_groups:
+                        file_groups["default"] = {"header": "", "files": []}
+                    file_groups["default"]["files"].append(item.text())
+                else:
+                    current_files.append(item.text())
             else:
                 print(f"Warning: Item at row {i} has unknown type: {item_type}")
 
-        if current_files:
+        if current_section is not None:
+            # Save the last section, even if it has no files
             file_groups[current_section] = {
                 "header": current_header,
                 "files": current_files
@@ -446,8 +446,6 @@ class FileListWidget(QWidget):
             self.listWidget.insertItem(insert_pos, item)
             print(f"FileListWidget.handle_folder_change: Added file: {file}")
             insert_pos += 1
-
-        self.save_yaml()
 
     def reset(self):
         print("FileListWidget.reset: Resetting")
