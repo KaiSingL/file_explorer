@@ -171,7 +171,7 @@ class FileListWidget(QWidget):
         font.setPointSize(16)
         font.setBold(True)
         label.setFont(font)
-        label.setWordWrap(True)
+        label.setWordWrap(False)
 
         delete_button = QPushButton("×")
         delete_button.setFixedSize(20, 20)
