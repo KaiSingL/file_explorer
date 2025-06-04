@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QStackedWidget, QWidge
 
 # Base path for resources (handles both packaged and non-packaged scenarios)
 def resource_path(relative_path):
-    """Get absolute path to resource, works for dev and PyInstaller."""
+    print(f"resource_path: Getting resource path for {relative_path}")
     if hasattr(sys, '_MEIPASS'):
         # PyInstaller creates a temp folder and stores path in _MEIPASS
         return os.path.join(sys._MEIPASS, relative_path)
@@ -28,12 +28,14 @@ class ImportFolderWidget(QWidget):
     folderSelected = Signal(str)
 
     def __init__(self):
+        print("ImportFolderWidget.__init__: Initializing")
         super().__init__()
         self.initUI()
         self.setAcceptDrops(True)
         QApplication.instance().paletteChanged.connect(self.update_icon)
 
     def initUI(self):
+        print("ImportFolderWidget.initUI: Setting up UI")
         layout = QVBoxLayout()
         layout.addStretch(1)
 
@@ -58,6 +60,7 @@ class ImportFolderWidget(QWidget):
         self.update_icon(QApplication.instance().palette())
 
     def update_icon(self, palette):
+        print(f"ImportFolderWidget.update_icon: Updating icon for theme lightness {palette.color(QPalette.Window).lightness()}")
         # Load icons from assets folder using resource_path
         if palette.color(QPalette.Window).lightness() < 128:
             icon_path = resource_path("assets/FolderIconDark.png")
@@ -73,29 +76,38 @@ class ImportFolderWidget(QWidget):
         self.icon_label.setPixmap(pixmap.scaled(128, 128, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
     def dragEnterEvent(self, event: QDragEnterEvent):
+        print("ImportFolderWidget.dragEnterEvent: Drag enter event occurred")
         if event.mimeData().hasUrls():
             url = event.mimeData().urls()[0]
             if url.isLocalFile() and os.path.isdir(url.toLocalFile()):
+                print("ImportFolderWidget.dragEnterEvent: Accepted drag of folder")
                 event.accept()
             else:
+                print("ImportFolderWidget.dragEnterEvent: Ignored drag: not a local folder")
                 event.ignore()
         else:
+            print("ImportFolderWidget.dragEnterEvent: Ignored drag: no URLs in mime data")
             event.ignore()
 
     def dropEvent(self, event: QDropEvent):
+        print("ImportFolderWidget.dropEvent: Drop event occurred")
         url = event.mimeData().urls()[0]
         folder_path = url.toLocalFile()
+        print(f"ImportFolderWidget.dropEvent: Selected folder via drop: {folder_path}")
         self.folderSelected.emit(folder_path)
 
     def selectFolder(self):
+        print("ImportFolderWidget.selectFolder: Select folder button clicked")
         folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
         if folder_path:
+            print(f"ImportFolderWidget.selectFolder: Selected folder via dialog: {folder_path}")
             self.folderSelected.emit(folder_path)
 
 class FileListWidget(QWidget):
     backRequested = Signal()
 
     def __init__(self):
+        print("FileListWidget.__init__: Initializing")
         super().__init__()
         self.folder_path = None
         self.watcher = QFileSystemWatcher(self)
@@ -104,6 +116,7 @@ class FileListWidget(QWidget):
         self.initUI()
 
     def initUI(self):
+        print("FileListWidget.initUI: Setting up UI")
         self.listWidget = QListWidget()
         self.listWidget.setDragDropMode(QListWidget.InternalMove)
         self.listWidget.setIconSize(QSize(24, 24))
@@ -125,6 +138,7 @@ class FileListWidget(QWidget):
         back_shortcut.activated.connect(self.backRequested)
 
     def set_theme(self, color_scheme):
+        print(f"FileListWidget.set_theme: Setting theme to {color_scheme}")
         if color_scheme == Qt.ColorScheme.Dark:
             hover_color = "#404040"
         else:
@@ -136,6 +150,7 @@ class FileListWidget(QWidget):
         """)
 
     def create_file_item(self, file_name, file_path):
+        print(f"FileListWidget.create_file_item: Creating file item for {file_name}")
         item = QListWidgetItem(file_name)
         item.setData(ItemTypeRole, "file")
         item.setData(FilePathRole, file_path)
@@ -145,6 +160,7 @@ class FileListWidget(QWidget):
         return item
 
     def create_header_item(self, header_text):
+        print(f"FileListWidget.create_header_item: Creating header item: {header_text}")
         item_widget = QWidget()
         layout = QHBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -181,6 +197,7 @@ class FileListWidget(QWidget):
         return item
 
     def delete_header(self, item_widget):
+        print("FileListWidget.delete_header: Deleting header")
         for i in range(self.listWidget.count()):
             item = self.listWidget.item(i)
             if self.listWidget.itemWidget(item) == item_widget:
@@ -215,6 +232,7 @@ class FileListWidget(QWidget):
                 break
 
     def setFolderPath(self, folder_path):
+        print(f"FileListWidget.setFolderPath: Setting folder path to {folder_path}")
         self.folder_path = folder_path
         self.listWidget.clear()
         yaml_path = os.path.join(folder_path, "file_groups.yaml")
@@ -223,6 +241,7 @@ class FileListWidget(QWidget):
             try:
                 with open(yaml_path, "r", encoding="utf-8") as f:
                     data = yaml.safe_load(f)
+                    print("FileListWidget.setFolderPath: YAML file loaded successfully")
                     file_groups = data.get("file_groups", {})
                     for key in sorted(file_groups.keys(), key=lambda x: (x != "default", x)):
                         section = file_groups[key]
@@ -234,9 +253,9 @@ class FileListWidget(QWidget):
                                 item = self.create_file_item(file, file_path)
                                 self.listWidget.addItem(item)
             except Exception:
-                pass
-
-        if self.listWidget.count() == 0:
+                print("FileListWidget.setFolderPath: Failed to load YAML file")
+        else:
+            print("FileListWidget.setFolderPath: No YAML file found, creating new one")
             dir = QDir(folder_path)
             files = [f for f in dir.entryList(QDir.Files) if f != "file_groups.yaml"]
             data = {
@@ -262,17 +281,22 @@ class FileListWidget(QWidget):
         self.handle_folder_change()
 
     def add_header(self):
+        print("FileListWidget.add_header: Adding new header")
         self.create_header_item("New Header")
         self.save_yaml()
 
     def onItemDoubleClicked(self, item):
+        print(f"FileListWidget.onItemDoubleClicked: Item double-clicked: {item.text()}")
         if item.data(ItemTypeRole) == "file":
             file_path = item.data(FilePathRole)
+            print(f"FileListWidget.onItemDoubleClicked: Opening file: {file_path}")
             QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
         elif item.data(ItemTypeRole) == "header":
+            print("FileListWidget.onItemDoubleClicked: Editing header")
             self.edit_header_item(item)
 
     def edit_header_item(self, item):
+        print(f"FileListWidget.edit_header_item: Editing header item: {item.text()}")
         widget = self.listWidget.itemWidget(item)
         if widget:
             label = widget.findChild(QLabel)
@@ -300,8 +324,11 @@ class FileListWidget(QWidget):
                 edit.setFocus()  # Set focus last
             else:
                 print(f"Warning: Header item at row {self.listWidget.row(item)} has no QLabel")
+        else:
+            print(f"Warning: Header item at row {self.listWidget.row(item)} has no widget")
 
     def finish_editing_header(self, item, edit):
+        print(f"FileListWidget.finish_editing_header: Finished editing header to '{edit.text().strip()}'")
         new_text = edit.text().strip()
         if not new_text:
             new_text = "Unnamed Header"
@@ -320,6 +347,7 @@ class FileListWidget(QWidget):
             self.save_yaml()
 
     def save_yaml(self):
+        print("FileListWidget.save_yaml: Saving YAML file")
         if not self.folder_path:
             return
         file_groups = {}
@@ -384,6 +412,7 @@ class FileListWidget(QWidget):
             yaml.dump(data, f, allow_unicode=True, sort_keys=False)
 
     def handle_folder_change(self):
+        print("FileListWidget.handle_folder_change: Handling folder change")
         if not self.folder_path:
             return
         dir = QDir(self.folder_path)
@@ -402,6 +431,7 @@ class FileListWidget(QWidget):
                 item = self.listWidget.item(i)
                 if item.data(ItemTypeRole) == "file" and item.text() == file:
                     self.listWidget.takeItem(i)
+                    print(f"FileListWidget.handle_folder_change: Removed file: {file}")
                     break
 
         insert_pos = 0
@@ -414,11 +444,13 @@ class FileListWidget(QWidget):
             file_path = os.path.join(self.folder_path, file)
             item = self.create_file_item(file, file_path)
             self.listWidget.insertItem(insert_pos, item)
+            print(f"FileListWidget.handle_folder_change: Added file: {file}")
             insert_pos += 1
 
         self.save_yaml()
 
     def reset(self):
+        print("FileListWidget.reset: Resetting")
         self.folder_path = None
         self.listWidget.clear()
         if self.watcher.directories():
@@ -426,6 +458,7 @@ class FileListWidget(QWidget):
 
 class MainWindow(QMainWindow):
     def __init__(self):
+        print("MainWindow.__init__: Initializing")
         super().__init__()
         self.initUI()
         self.apply_system_theme()
@@ -439,6 +472,7 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(app_icon)
 
     def initUI(self):
+        print("MainWindow.initUI: Setting up UI")
         self.stackedWidget = QStackedWidget()
         self.setCentralWidget(self.stackedWidget)
         self.importFolderWidget = ImportFolderWidget()
@@ -478,6 +512,7 @@ class MainWindow(QMainWindow):
         self.stackedWidget.currentChanged.connect(self.updateToolbar)
 
     def updateToolbar(self, index):
+        print(f"MainWindow.updateToolbar: Updating toolbar for widget index {index}")
         if index == 1:  # fileListWidget
             self.toolbar.setVisible(True)
             self.back_action.setEnabled(True)
@@ -488,6 +523,7 @@ class MainWindow(QMainWindow):
             self.add_header_action.setEnabled(False)
 
     def apply_system_theme(self):
+        print("MainWindow.apply_system_theme: Applying system theme")
         style_hints = QApplication.instance().styleHints()
         color_scheme = style_hints.colorScheme()
         
@@ -525,14 +561,17 @@ class MainWindow(QMainWindow):
         self.fileListWidget.set_theme(color_scheme)
 
     def onFolderSelected(self, folder_path):
+        print(f"MainWindow.onFolderSelected: Folder selected: {folder_path}")
         self.fileListWidget.setFolderPath(folder_path)
         self.stackedWidget.setCurrentWidget(self.fileListWidget)
 
     def onBackRequested(self):
+        print("MainWindow.onBackRequested: Back requested")
         self.fileListWidget.reset()
         self.stackedWidget.setCurrentWidget(self.importFolderWidget)
 
 if __name__ == "__main__":
+    print("main: Starting application")
     app = QApplication(sys.argv)
     font = QFont()
     font.setPointSize(14)
