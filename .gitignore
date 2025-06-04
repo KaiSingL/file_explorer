@@ -23,6 +23,9 @@ Thumbs.db
 # Log files
 *.log
 
+# Spec files
+*.spec
+
 # Local configuration files (uncomment and adjust as needed)
 #.env
 #config.local.yaml
