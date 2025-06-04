@@ -43,6 +43,24 @@ File View is a simple file explorer application built with PySide6 that allows u
 7. To open a file, double-click on it.
 8. To go back to the folder selection screen, press `Ctrl+Backspace` or click the "<" button in the toolbar.
 
+## Packaging with PyInstaller
+
+To create a standalone executable for the application, you can use PyInstaller to package the script along with its dependencies and assets. Run the following command in the directory containing `file_explorer.py` and the `assets` folder:
+
+```
+pyinstaller --onefile --windowed --add-data "assets;assets" --icon=assets/AppIcon.ico --name "File View" file_explorer.py
+```
+
+### Explanation of the command:
+- `--onefile`: Packages the application into a single executable file.
+- `--windowed`: Runs the application without a console window (suitable for GUI applications).
+- `--add-data "assets;assets"`: Includes the `assets` folder in the packaged executable, ensuring icons are available.
+- `--icon=assets/AppIcon.ico`: Sets the application icon for the executable.
+- `--name "File View"`: Names the output executable "File View".
+- `file_explorer.py`: The main script to package.
+
+After running the command, the executable will be created in the `dist` folder as `File View.exe` (on Windows) or `File View` (on other platforms).
+
 ## Notes
 
 - The grouping information is saved in a file named `file_groups.yaml` within the selected folder.
