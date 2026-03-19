@@ -1,8 +1,8 @@
 import sys
 import os
 import yaml
-from PySide6.QtCore import Qt, QUrl, QDir, Signal, QFileSystemWatcher, QFileInfo, QSize
-from PySide6.QtGui import QFont, QShortcut, QKeySequence, QDragEnterEvent, QDropEvent, QDesktopServices, QPixmap, QIcon, QPalette, QColor, QAction
+from PySide6.QtCore import Qt, QUrl, QDir, Signal, QFileSystemWatcher, QFileInfo, QSize, QPoint
+from PySide6.QtGui import QFont, QShortcut, QKeySequence, QDragEnterEvent, QDropEvent, QDesktopServices, QPixmap, QIcon, QPalette, QColor, QAction, QMouseEvent
 from PySide6.QtWidgets import (QApplication, QMainWindow, QStackedWidget, QWidget, QVBoxLayout, 
                               QLabel, QPushButton, QListWidget, QListWidgetItem, QFileDialog, QHBoxLayout, QStyle, QFileIconProvider, QToolBar, QSizePolicy, QLineEdit)
 
@@ -459,10 +459,103 @@ class FileListWidget(QWidget):
         if self.watcher.directories():
             self.watcher.removePaths(self.watcher.directories())
 
+class CustomTitleBar(QWidget):
+    backClicked = Signal()
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._drag_position = None
+        
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(5, 0, 5, 0)
+        layout.setSpacing(8)
+        
+        self.back_button = QPushButton("<")
+        self.back_button.setFixedSize(30, 30)
+        self.back_button.setVisible(False)
+        self.back_button.clicked.connect(self.backClicked)
+        
+        self.title_label = QLabel("File View")
+        self.title_label.setStyleSheet("QLabel { font-weight: bold; }")
+        
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        
+        self.add_header_button = QPushButton("+")
+        self.add_header_button.setFixedSize(30, 30)
+        self.add_header_button.setToolTip("Add new header")
+        
+        self.minimize_button = QPushButton("─")
+        self.minimize_button.setFixedSize(30, 30)
+        self.minimize_button.clicked.connect(lambda: self.window().showMinimized())
+        
+        self.maximize_button = QPushButton("□")
+        self.maximize_button.setFixedSize(30, 30)
+        self.maximize_button.clicked.connect(self.toggle_maximize)
+        
+        self.close_button = QPushButton("✕")
+        self.close_button.setFixedSize(30, 30)
+        self.close_button.setStyleSheet("QPushButton:hover { background-color: red; color: white; }")
+        self.close_button.clicked.connect(lambda: self.window().close())
+        
+        layout.addWidget(self.back_button)
+        layout.addWidget(self.title_label)
+        layout.addWidget(spacer)
+        layout.addWidget(self.add_header_button)
+        layout.addWidget(self.minimize_button)
+        layout.addWidget(self.maximize_button)
+        layout.addWidget(self.close_button)
+        
+        self.setFixedHeight(40)
+    
+    def setTitle(self, text):
+        self.title_label.setText(text)
+    
+    def setBackButtonVisible(self, visible):
+        self.back_button.setVisible(visible)
+    
+    def setAddHeaderButtonVisible(self, visible):
+        self.add_header_button.setVisible(visible)
+    
+    def toggle_maximize(self):
+        if self.window().isMaximized():
+            self.window().showNormal()
+        else:
+            self.window().showMaximized()
+    
+    def update_maximize_icon(self):
+        if self.window().isMaximized():
+            self.maximize_button.setText("❐")
+        else:
+            self.maximize_button.setText("□")
+    
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_position = event.globalPosition().toPoint()
+        super().mousePressEvent(event)
+    
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.LeftButton and self._drag_position:
+            if self.window().isMaximized():
+                pass
+            else:
+                self.window().move(self.window().pos() + event.globalPosition().toPoint() - self._drag_position)
+                self._drag_position = event.globalPosition().toPoint()
+        super().mouseMoveEvent(event)
+    
+    def mouseReleaseEvent(self, event):
+        self._drag_position = None
+        super().mouseReleaseEvent(event)
+    
+    def mouseDoubleClickEvent(self, event):
+        self.toggle_maximize()
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         print("MainWindow.__init__: Initializing")
         super().__init__()
+        self.setWindowFlags(Qt.WindowFlags(Qt.FramelessWindowHint))
         self.initUI()
         self.apply_system_theme()
         QApplication.instance().styleHints().colorSchemeChanged.connect(self.apply_system_theme)
@@ -487,43 +580,28 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("File View")
         self.setGeometry(100, 100, 600, 400)
 
-        # Create toolbar
-        self.toolbar = QToolBar()
-        self.addToolBar(self.toolbar)
-
-        # Create actions
-        self.back_action = QAction("<", self)
-        self.back_action.setToolTip("Back to folder selection")
+        self.titleBar = CustomTitleBar(self)
+        self.setMenuWidget(self.titleBar)
+        self.titleBar.backClicked.connect(self.onBackRequested)
+        
         self.add_header_action = QAction("+", self)
         self.add_header_action.setToolTip("Add new header")
-
-        # Connect actions
-        self.back_action.triggered.connect(self.onBackRequested)
         self.add_header_action.triggered.connect(self.fileListWidget.add_header)
+        self.titleBar.add_header_button.clicked.connect(self.fileListWidget.add_header)
+        
+        self.stackedWidget.currentChanged.connect(self.updateTitleBar)
+        self.updateTitleBar(self.stackedWidget.currentIndex())
 
-        # Add actions to toolbar with a spacer
-        self.toolbar.addAction(self.back_action)
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        self.toolbar.addWidget(spacer)
-        self.toolbar.addAction(self.add_header_action)
-
-        # Initially hide the toolbar
-        self.toolbar.setVisible(False)
-
-        # Connect stacked widget's currentChanged signal
-        self.stackedWidget.currentChanged.connect(self.updateToolbar)
-
-    def updateToolbar(self, index):
-        print(f"MainWindow.updateToolbar: Updating toolbar for widget index {index}")
-        if index == 1:  # fileListWidget
-            self.toolbar.setVisible(True)
-            self.back_action.setEnabled(True)
-            self.add_header_action.setEnabled(True)
-        else:  # importFolderWidget
-            self.toolbar.setVisible(False)
-            self.back_action.setEnabled(False)
-            self.add_header_action.setEnabled(False)
+    def updateTitleBar(self, index):
+        print(f"MainWindow.updateTitleBar: Updating title bar for widget index {index}")
+        if index == 1:
+            self.titleBar.setBackButtonVisible(True)
+            self.titleBar.setAddHeaderButtonVisible(True)
+            self.titleBar.setTitle(self.titleBar.window().windowTitle() if self.titleBar.window().windowTitle() != "File View" else os.path.basename(self.fileListWidget.folderPath))
+        else:
+            self.titleBar.setBackButtonVisible(False)
+            self.titleBar.setAddHeaderButtonVisible(False)
+            self.titleBar.setTitle("File View")
 
     def apply_system_theme(self):
         print("MainWindow.apply_system_theme: Applying system theme")
@@ -562,16 +640,35 @@ class MainWindow(QMainWindow):
         QApplication.instance().setPalette(palette)
         
         self.fileListWidget.set_theme(color_scheme)
+        
+        window_color = palette.color(QPalette.Window)
+        text_color = palette.color(QPalette.WindowText)
+        self.titleBar.setStyleSheet(f"""
+            QWidget {{
+                background-color: {window_color.name()};
+                color: {text_color.name()};
+            }}
+            QPushButton {{
+                background-color: transparent;
+                border: none;
+                color: {text_color.name()};
+            }}
+            QPushButton:hover {{
+                background-color: rgba(128, 128, 128, 0.3);
+            }}
+        """)
 
     def onFolderSelected(self, folder_path):
         print(f"MainWindow.onFolderSelected: Folder selected: {folder_path}")
         self.fileListWidget.setFolderPath(folder_path)
         self.stackedWidget.setCurrentWidget(self.fileListWidget)
+        self.titleBar.setTitle(os.path.basename(folder_path))
 
     def onBackRequested(self):
         print("MainWindow.onBackRequested: Back requested")
         self.fileListWidget.reset()
         self.stackedWidget.setCurrentWidget(self.importFolderWidget)
+        self.titleBar.setTitle("File View")
 
 if __name__ == "__main__":
     print("main: Starting application")
