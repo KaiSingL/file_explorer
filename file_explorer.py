@@ -175,6 +175,7 @@ class FileListWidget(QWidget):
 
         delete_button = QPushButton("×")
         delete_button.setFixedSize(20, 20)
+        delete_button.setVisible(False)
         delete_button.setStyleSheet("""
             QPushButton {
                 border: none;
@@ -184,6 +185,10 @@ class FileListWidget(QWidget):
             }
         """)
         delete_button.clicked.connect(lambda: self.delete_header(item_widget))
+
+        item_widget.delete_button = delete_button
+        item_widget.enterEvent = lambda e: delete_button.setVisible(True)
+        item_widget.leaveEvent = lambda e: delete_button.setVisible(False)
 
         layout.addWidget(label)
         layout.addStretch()
