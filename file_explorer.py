@@ -138,7 +138,19 @@ class FileListWidget(QWidget):
 
         back_shortcut = QShortcut(QKeySequence("Ctrl+Backspace"), self)
         back_shortcut.activated.connect(self.backRequested)
-
+    
+    def load_svg_icon(self, filename, size=24):
+        svg_path = resource_path(f"assets/{filename}")
+        renderer = QSvgRenderer(svg_path)
+        if not renderer.isValid():
+            return QIcon()
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        renderer.render(painter)
+        painter.end()
+        return QIcon(pixmap)
+    
     def set_theme(self, color_scheme):
         print(f"FileListWidget.set_theme: Setting theme to {color_scheme}")
         if color_scheme == Qt.ColorScheme.Dark:
@@ -174,8 +186,10 @@ class FileListWidget(QWidget):
         label.setFont(font)
         label.setWordWrap(False)
 
-        delete_button = QPushButton("×")
+        delete_button = QPushButton()
         delete_button.setFixedSize(20, 20)
+        delete_button.setIcon(self.load_svg_icon("icon-delete.svg", 16))
+        delete_button.setIconSize(QSize(16, 16))
         delete_button.setVisible(False)
         delete_button.setStyleSheet("""
             QPushButton {
