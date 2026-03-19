@@ -631,7 +631,7 @@ class MainWindow(QMainWindow):
         if index == 1:
             self.titleBar.setBackButtonVisible(True)
             self.titleBar.setAddHeaderButtonVisible(True)
-            self.titleBar.setTitle(self.titleBar.window().windowTitle() if self.titleBar.window().windowTitle() != "File View" else os.path.basename(self.fileListWidget.folderPath))
+            self.titleBar.setTitle(self.titleBar.window().windowTitle() if self.titleBar.window().windowTitle() != "File View" else os.path.basename(self.fileListWidget.folder_path))
         else:
             self.titleBar.setBackButtonVisible(False)
             self.titleBar.setAddHeaderButtonVisible(False)
