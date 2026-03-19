@@ -2,7 +2,8 @@ import sys
 import os
 import yaml
 from PySide6.QtCore import Qt, QUrl, QDir, Signal, QFileSystemWatcher, QFileInfo, QSize, QPoint
-from PySide6.QtGui import QFont, QShortcut, QKeySequence, QDragEnterEvent, QDropEvent, QDesktopServices, QPixmap, QIcon, QPalette, QColor, QAction, QMouseEvent
+from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtGui import QFont, QShortcut, QKeySequence, QDragEnterEvent, QDropEvent, QDesktopServices, QPixmap, QIcon, QPalette, QColor, QAction, QMouseEvent, QPainter
 from PySide6.QtWidgets import (QApplication, QMainWindow, QStackedWidget, QWidget, QVBoxLayout, 
                               QLabel, QPushButton, QListWidget, QListWidgetItem, QFileDialog, QHBoxLayout, QStyle, QFileIconProvider, QToolBar, QSizePolicy, QLineEdit)
 
@@ -470,8 +471,10 @@ class CustomTitleBar(QWidget):
         layout.setContentsMargins(5, 0, 5, 0)
         layout.setSpacing(8)
         
-        self.back_button = QPushButton("<")
+        self.back_button = QPushButton()
         self.back_button.setFixedSize(30, 30)
+        self.back_button.setIcon(self.load_svg_icon("icon-back.svg"))
+        self.back_button.setIconSize(QSize(20, 20))
         self.back_button.setVisible(False)
         self.back_button.clicked.connect(self.backClicked)
         
@@ -481,21 +484,29 @@ class CustomTitleBar(QWidget):
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         
-        self.add_header_button = QPushButton("+")
+        self.add_header_button = QPushButton()
         self.add_header_button.setFixedSize(30, 30)
+        self.add_header_button.setIcon(self.load_svg_icon("icon-add.svg"))
+        self.add_header_button.setIconSize(QSize(20, 20))
         self.add_header_button.setToolTip("Add new header")
         
-        self.minimize_button = QPushButton("─")
+        self.minimize_button = QPushButton()
         self.minimize_button.setFixedSize(30, 30)
+        self.minimize_button.setIcon(self.load_svg_icon("icon-minimize.svg"))
+        self.minimize_button.setIconSize(QSize(20, 20))
         self.minimize_button.clicked.connect(lambda: self.window().showMinimized())
         
-        self.maximize_button = QPushButton("□")
+        self.maximize_button = QPushButton()
         self.maximize_button.setFixedSize(30, 30)
+        self.maximize_button.setIcon(self.load_svg_icon("icon-maximize.svg"))
+        self.maximize_button.setIconSize(QSize(20, 20))
         self.maximize_button.clicked.connect(self.toggle_maximize)
         
-        self.close_button = QPushButton("✕")
+        self.close_button = QPushButton()
+        self.close_button.setObjectName("closeButton")
         self.close_button.setFixedSize(30, 30)
-        self.close_button.setStyleSheet("QPushButton:hover { background-color: red; color: white; }")
+        self.close_button.setIcon(self.load_svg_icon("icon-close.svg"))
+        self.close_button.setIconSize(QSize(20, 20))
         self.close_button.clicked.connect(lambda: self.window().close())
         
         layout.addWidget(self.back_button)
@@ -507,6 +518,19 @@ class CustomTitleBar(QWidget):
         layout.addWidget(self.close_button)
         
         self.setFixedHeight(40)
+    
+    def load_svg_icon(self, filename, color=None):
+        svg_path = resource_path(f"assets/{filename}")
+        renderer = QSvgRenderer(svg_path)
+        if not renderer.isValid():
+            return QIcon()
+        size = 24
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        renderer.render(painter)
+        painter.end()
+        return QIcon(pixmap)
     
     def setTitle(self, text):
         self.title_label.setText(text)
@@ -520,14 +544,10 @@ class CustomTitleBar(QWidget):
     def toggle_maximize(self):
         if self.window().isMaximized():
             self.window().showNormal()
+            self.maximize_button.setIcon(self.load_svg_icon("icon-maximize.svg"))
         else:
             self.window().showMaximized()
-    
-    def update_maximize_icon(self):
-        if self.window().isMaximized():
-            self.maximize_button.setText("❐")
-        else:
-            self.maximize_button.setText("□")
+            self.maximize_button.setIcon(self.load_svg_icon("icon-restore.svg"))
     
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -651,10 +671,12 @@ class MainWindow(QMainWindow):
             QPushButton {{
                 background-color: transparent;
                 border: none;
-                color: {text_color.name()};
             }}
             QPushButton:hover {{
                 background-color: rgba(128, 128, 128, 0.3);
+            }}
+            QPushButton#closeButton:hover {{
+                background-color: red;
             }}
         """)
 
