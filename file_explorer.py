@@ -674,7 +674,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.central_container)
         
         container_layout = QVBoxLayout(self.central_container)
-        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setContentsMargins(1, 1, 1, 1)
         container_layout.setSpacing(0)
         
         self.titleBar = CustomTitleBar(self)
@@ -813,10 +813,12 @@ class MainWindow(QMainWindow):
                 }}
             """)
         else:
+            border_color = "#404040" if window_color.lightness() < 128 else "#d0d0d0"
             self.central_container.setStyleSheet(f"""
                 #centralContainer {{
                     background-color: {window_color.name()};
                     border-radius: 8px;
+                    border: 1px solid {border_color};
                 }}
             """)
 
