@@ -115,19 +115,60 @@ class ImportFolderWidget(QWidget):
 
     def update_icon(self, palette):
         print(f"ImportFolderWidget.update_icon: Updating icon for theme lightness {palette.color(QPalette.Window).lightness()}")
+        is_dark = palette.color(QPalette.Window).lightness() < 128
+
         # Load icons from assets folder using resource_path
-        if palette.color(QPalette.Window).lightness() < 128:
+        if is_dark:
             icon_path = resource_path("assets/FolderIconDark.png")
         else:
             icon_path = resource_path("assets/FolderIconLight.png")
-        
+
         pixmap = QPixmap(icon_path)
         if pixmap.isNull():
             # Fallback to system icon if loading fails
             pixmap = QApplication.style().standardPixmap(QStyle.SP_DirIcon)
             print(f"Warning: Could not load icon at {icon_path}, using fallback.")
-        
+
         self.icon_label.setPixmap(pixmap.scaled(128, 128, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+
+        if is_dark:
+            self.button.setStyleSheet("""
+                QPushButton {
+                    background-color: #4a7c7c;
+                    color: white;
+                    border: 1px solid #5a9090;
+                    border-radius: 6px;
+                    padding: 10px 24px;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #5a9494;
+                    border-color: #6aa8a8;
+                }
+                QPushButton:pressed {
+                    background-color: #3d6b6b;
+                    border-color: #4a7c7c;
+                }
+            """)
+        else:
+            self.button.setStyleSheet("""
+                QPushButton {
+                    background-color: #3a7575;
+                    color: white;
+                    border: 1px solid #2e6060;
+                    border-radius: 6px;
+                    padding: 10px 24px;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #4a8a8a;
+                    border-color: #3a7575;
+                }
+                QPushButton:pressed {
+                    background-color: #2e6060;
+                    border-color: #245252;
+                }
+            """)
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         print("ImportFolderWidget.dragEnterEvent: Drag enter event occurred")
