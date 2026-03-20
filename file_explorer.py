@@ -588,6 +588,7 @@ class CustomTitleBar(QWidget):
         self.back_button.setIcon(self.load_svg_icon("icon-back.svg"))
         self.back_button.setIconSize(QSize(20, 20))
         self.back_button.setVisible(False)
+        self.back_button.setToolTip("Back")
         self.back_button.clicked.connect(self.backClicked)
         
         self.title_label = QLabel("File View")
@@ -606,12 +607,14 @@ class CustomTitleBar(QWidget):
         self.minimize_button.setFixedSize(30, 30)
         self.minimize_button.setIcon(self.load_svg_icon("icon-minimize.svg"))
         self.minimize_button.setIconSize(QSize(20, 20))
+        self.minimize_button.setToolTip("Minimize")
         self.minimize_button.clicked.connect(lambda: self.window().showMinimized())
         
         self.maximize_button = QPushButton()
         self.maximize_button.setFixedSize(30, 30)
         self.maximize_button.setIcon(self.load_svg_icon("icon-maximize.svg"))
         self.maximize_button.setIconSize(QSize(20, 20))
+        self.maximize_button.setToolTip("Maximize")
         self.maximize_button.clicked.connect(self.toggle_maximize)
         
         self.close_button = QPushButton()
@@ -619,6 +622,7 @@ class CustomTitleBar(QWidget):
         self.close_button.setFixedSize(30, 30)
         self.close_button.setIcon(self.load_svg_icon("icon-close.svg"))
         self.close_button.setIconSize(QSize(20, 20))
+        self.close_button.setToolTip("Close")
         self.close_button.clicked.connect(lambda: self.window().close())
         
         layout.addWidget(self.back_button)
@@ -657,9 +661,11 @@ class CustomTitleBar(QWidget):
         if self.window().isMaximized():
             self.window().showNormal()
             self.maximize_button.setIcon(self.load_svg_icon("icon-maximize.svg"))
+            self.maximize_button.setToolTip("Maximize")
         else:
             self.window().showMaximized()
             self.maximize_button.setIcon(self.load_svg_icon("icon-restore.svg"))
+            self.maximize_button.setToolTip("Restore")
     
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -943,6 +949,7 @@ if __name__ == "__main__":
     font = QFont()
     font.setPointSize(14)
     app.setFont(font)
+    app.setStyleSheet("QToolTip { font-size: 10pt; }")
     mainWindow = MainWindow()
     mainWindow.show()
     sys.exit(app.exec())
