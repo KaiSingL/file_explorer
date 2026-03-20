@@ -216,8 +216,24 @@ class FileListWidget(QWidget):
         self.listWidget.setDragDropMode(QListWidget.InternalMove)
         self.listWidget.setIconSize(QSize(24, 24))
 
+        self.empty_label = QLabel("No file in this folder")
+        font = QFont()
+        font.setPointSize(14)
+        self.empty_label.setFont(font)
+        self.empty_label.setAlignment(Qt.AlignCenter)
+
+        empty_page = QWidget()
+        empty_layout = QVBoxLayout(empty_page)
+        empty_layout.addStretch()
+        empty_layout.addWidget(self.empty_label, alignment=Qt.AlignCenter)
+        empty_layout.addStretch()
+
+        self.stacked = QStackedWidget()
+        self.stacked.addWidget(self.listWidget)
+        self.stacked.addWidget(empty_page)
+
         main_layout = QVBoxLayout()
-        main_layout.addWidget(self.listWidget)
+        main_layout.addWidget(self.stacked)
         self.setLayout(main_layout)
 
         self.listWidget.itemDoubleClicked.connect(self.onItemDoubleClicked)
@@ -232,7 +248,23 @@ class FileListWidget(QWidget):
 
         back_shortcut = QShortcut(QKeySequence("Ctrl+Backspace"), self)
         back_shortcut.activated.connect(self.backRequested)
-    
+
+    def update_empty_message(self):
+        file_count = sum(1 for i in range(self.listWidget.count()) if self.listWidget.item(i).data(ItemTypeRole) == "file")
+        if file_count == 0:
+            has_subdirs = False
+            if self.folder_path:
+                dir = QDir(self.folder_path)
+                subdirs = dir.entryList(QDir.Dirs | QDir.NoDotAndDotDot)
+                has_subdirs = len(subdirs) > 0
+            if has_subdirs:
+                self.empty_label.setText("No file in this folder\nfolder is hidden by design")
+            else:
+                self.empty_label.setText("No file in this folder")
+            self.stacked.setCurrentIndex(1)
+        else:
+            self.stacked.setCurrentIndex(0)
+
     def load_svg_icon(self, filename, size=24):
         svg_path = resource_path(f"assets/{filename}")
         renderer = QSvgRenderer(svg_path)
@@ -260,6 +292,7 @@ class FileListWidget(QWidget):
                 background-color: {hover_color};
             }}
         """)
+        self.stacked.widget(1).setStyleSheet(f"background-color: {bg_color};")
 
     def create_file_item(self, file_name, file_path):
         print(f"FileListWidget.create_file_item: Creating file item for {file_name}")
@@ -348,6 +381,7 @@ class FileListWidget(QWidget):
                     target_pos += 1
 
                 self.save_yaml()
+                self.update_empty_message()
                 break
 
     def setFolderPath(self, folder_path):
@@ -398,6 +432,7 @@ class FileListWidget(QWidget):
             self.watcher.addPath(self.folder_path)
 
         self.handle_folder_change()
+        self.update_empty_message()
 
     def add_header(self):
         print("FileListWidget.add_header: Adding new header")
@@ -564,6 +599,8 @@ class FileListWidget(QWidget):
             self.listWidget.insertItem(insert_pos, item)
             print(f"FileListWidget.handle_folder_change: Added file: {file}")
             insert_pos += 1
+
+        self.update_empty_message()
 
     def reset(self):
         print("FileListWidget.reset: Resetting")
