@@ -590,7 +590,11 @@ class CustomTitleBar(QWidget):
         self.back_button.setVisible(False)
         self.back_button.setToolTip("Back")
         self.back_button.clicked.connect(self.backClicked)
-        
+
+        self.icon_label = QLabel()
+        icon_pixmap = QPixmap(resource_path("assets/AppIcon.png")).scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.icon_label.setPixmap(icon_pixmap)
+
         self.title_label = QLabel("File View")
         self.title_label.setStyleSheet("QLabel { font-weight: bold; }")
         
@@ -626,6 +630,7 @@ class CustomTitleBar(QWidget):
         self.close_button.clicked.connect(lambda: self.window().close())
         
         layout.addWidget(self.back_button)
+        layout.addWidget(self.icon_label)
         layout.addWidget(self.title_label)
         layout.addWidget(spacer)
         layout.addWidget(self.add_header_button)
