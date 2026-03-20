@@ -210,7 +210,11 @@ class FileListWidget(QWidget):
             hover_color = "#404040"
         else:
             hover_color = "#e0e0e0"
+        bg_color = "#2b2b2b" if color_scheme == Qt.ColorScheme.Dark else "#ffffff"
         self.listWidget.setStyleSheet(f"""
+            QListWidget {{
+                background-color: {bg_color};
+            }}
             QListWidget::item:hover {{
                 background-color: {hover_color};
             }}
