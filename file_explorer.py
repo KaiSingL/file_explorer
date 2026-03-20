@@ -1,11 +1,64 @@
 import sys
 import os
 import yaml
-from PySide6.QtCore import Qt, QUrl, QDir, Signal, QFileSystemWatcher, QFileInfo, QSize, QPoint
+from PySide6.QtCore import Qt, QUrl, QDir, Signal, QFileSystemWatcher, QFileInfo, QSize, QPoint, QTimer
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtGui import QFont, QShortcut, QKeySequence, QDragEnterEvent, QDropEvent, QDesktopServices, QPixmap, QIcon, QPalette, QColor, QAction, QMouseEvent, QPainter
+from PySide6.QtGui import QFont, QShortcut, QKeySequence, QDragEnterEvent, QDropEvent, QDesktopServices, QPixmap, QIcon, QPalette, QColor, QAction, QMouseEvent, QPainter, QCursor
 from PySide6.QtWidgets import (QApplication, QMainWindow, QStackedWidget, QWidget, QVBoxLayout, 
-                              QLabel, QPushButton, QListWidget, QListWidgetItem, QFileDialog, QHBoxLayout, QStyle, QFileIconProvider, QToolBar, QSizePolicy, QLineEdit)
+                              QLabel, QPushButton, QListWidget, QListWidgetItem, QFileDialog, QHBoxLayout, QStyle, QFileIconProvider, QToolBar, QSizePolicy, QLineEdit, QGraphicsDropShadowEffect)
+
+if sys.platform == "win32":
+    import ctypes
+    from ctypes import wintypes
+    
+    class MARGINS(ctypes.Structure):
+        _fields_ = [
+            ("cxLeftWidth", ctypes.c_int),
+            ("cxRightWidth", ctypes.c_int),
+            ("cyTopHeight", ctypes.c_int),
+            ("cyBottomHeight", ctypes.c_int),
+        ]
+    
+    class POINT(ctypes.Structure):
+        _fields_ = [
+            ("x", ctypes.c_long),
+            ("y", ctypes.c_long),
+        ]
+    
+    class MSG(ctypes.Structure):
+        _fields_ = [
+            ("hwnd", wintypes.HWND),
+            ("message", wintypes.UINT),
+            ("wparam", wintypes.WPARAM),
+            ("lparam", wintypes.LPARAM),
+            ("time", wintypes.DWORD),
+            ("pt", POINT),
+        ]
+    
+    DwmExtendFrameIntoClientArea = ctypes.windll.dwmapi.DwmExtendFrameIntoClientArea
+    DwmExtendFrameIntoClientArea.argtypes = [wintypes.HWND, ctypes.POINTER(MARGINS)]
+    DwmExtendFrameIntoClientArea.restype = ctypes.HRESULT
+    
+    SetWindowLongPtrW = ctypes.windll.user32.SetWindowLongPtrW
+    GetWindowLongPtrW = ctypes.windll.user32.GetWindowLongPtrW
+    SetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_longlong]
+    SetWindowLongPtrW.restype = ctypes.c_longlong
+    GetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
+    GetWindowLongPtrW.restype = ctypes.c_longlong
+    
+    GWL_EXSTYLE = -20
+    WS_EX_LAYERED = 0x00080000
+    WS_EX_TRANSPARENT = 0x00000020
+    WM_NCHITTEST = 0x0084
+    HTLEFT = 10
+    HTRIGHT = 11
+    HTTOP = 12
+    HTBOTTOM = 15
+    HTTOPLEFT = 13
+    HTTOPRIGHT = 14
+    HTBOTTOMLEFT = 16
+    HTBOTTOMRIGHT = 17
+    HTCLIENT = 1
 
 # Base path for resources (handles both packaged and non-packaged scenarios)
 def resource_path(relative_path):
@@ -590,6 +643,12 @@ class MainWindow(QMainWindow):
         print("MainWindow.__init__: Initializing")
         super().__init__()
         self.setWindowFlags(Qt.WindowFlags(Qt.FramelessWindowHint))
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self._resize_margin = 8
+        self._minimum_width = 600
+        self._minimum_height = 400
+        self.setMinimumSize(self._minimum_width, self._minimum_height)
+        self.setMouseTracking(True)
         self.initUI()
         self.apply_system_theme()
         QApplication.instance().styleHints().colorSchemeChanged.connect(self.apply_system_theme)
@@ -603,21 +662,29 @@ class MainWindow(QMainWindow):
 
     def initUI(self):
         print("MainWindow.initUI: Setting up UI")
+        self.setWindowTitle("File View")
+        self.setGeometry(100, 100, 600, 400)
+        
+        self.central_container = QWidget()
+        self.central_container.setObjectName("centralContainer")
+        self.setCentralWidget(self.central_container)
+        
+        container_layout = QVBoxLayout(self.central_container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(0)
+        
+        self.titleBar = CustomTitleBar(self)
+        container_layout.addWidget(self.titleBar)
+        self.titleBar.backClicked.connect(self.onBackRequested)
+        
         self.stackedWidget = QStackedWidget()
-        self.setCentralWidget(self.stackedWidget)
+        container_layout.addWidget(self.stackedWidget)
         self.importFolderWidget = ImportFolderWidget()
         self.fileListWidget = FileListWidget()
         self.stackedWidget.addWidget(self.importFolderWidget)
         self.stackedWidget.addWidget(self.fileListWidget)
         self.importFolderWidget.folderSelected.connect(self.onFolderSelected)
         self.fileListWidget.backRequested.connect(self.onBackRequested)
-        self.setWindowTitle("File View")
-        self.setGeometry(100, 100, 600, 400)
-
-        self.titleBar = CustomTitleBar(self)
-        self.setMenuWidget(self.titleBar)
-        self.titleBar.backClicked.connect(self.onBackRequested)
-        
         self.add_header_action = QAction("+", self)
         self.add_header_action.setToolTip("Add new header")
         self.add_header_action.triggered.connect(self.fileListWidget.add_header)
@@ -636,6 +703,118 @@ class MainWindow(QMainWindow):
             self.titleBar.setBackButtonVisible(False)
             self.titleBar.setAddHeaderButtonVisible(False)
             self.titleBar.setTitle("File View")
+
+    def enable_windows_shadow(self):
+        hwnd = int(self.winId())
+        ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED)
+        margins = MARGINS(-1, -1, -1, -1)
+        DwmExtendFrameIntoClientArea(hwnd, ctypes.byref(margins))
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if sys.platform == "win32":
+            QTimer.singleShot(0, self.enable_windows_shadow)
+    
+    def nativeEvent(self, eventType, message):
+        if sys.platform == "win32" and eventType == "windows_generic_MSG":
+            try:
+                msg_address = int(message)
+                msg = ctypes.cast(msg_address, ctypes.POINTER(MSG)).contents
+                
+                if msg.message == WM_NCHITTEST:
+                    if self.isMaximized():
+                        return False, HTCLIENT
+                    
+                    pos = QPoint(msg.lparam & 0xFFFF, (msg.lparam >> 16) & 0xFFFF)
+                    window_pos = self.mapFromGlobal(pos)
+                    
+                    width = self.width()
+                    height = self.height()
+                    margin = self._resize_margin
+                    titlebar_height = self.titleBar.height() if hasattr(self, 'titleBar') else 40
+                    
+                    on_left = window_pos.x() < margin
+                    on_right = window_pos.x() > width - margin
+                    on_top = window_pos.y() < margin
+                    on_bottom = window_pos.y() > height - margin
+                    
+                    if on_top and on_left:
+                        return True, HTTOPLEFT
+                    elif on_top and on_right:
+                        return True, HTTOPRIGHT
+                    elif on_bottom and on_left:
+                        return True, HTBOTTOMLEFT
+                    elif on_bottom and on_right:
+                        return True, HTBOTTOMRIGHT
+                    elif on_left:
+                        return True, HTLEFT
+                    elif on_right:
+                        return True, HTRIGHT
+                    elif on_top:
+                        return True, HTTOP
+                    elif on_bottom:
+                        return True, HTBOTTOM
+            except Exception:
+                pass
+        return False, 0
+    
+    def mouseMoveEvent(self, event):
+        if self.isMaximized():
+            self.setCursor(Qt.ArrowCursor)
+            return
+        
+        pos = event.position().toPoint()
+        width = self.width()
+        height = self.height()
+        margin = self._resize_margin
+        on_left = pos.x() < margin
+        on_right = pos.x() > width - margin
+        on_top = pos.y() < margin
+        on_bottom = pos.y() > height - margin
+        
+        if on_top and on_left:
+            self.setCursor(Qt.SizeFDiagCursor)
+        elif on_top and on_right:
+            self.setCursor(Qt.SizeBDiagCursor)
+        elif on_bottom and on_left:
+            self.setCursor(Qt.SizeBDiagCursor)
+        elif on_bottom and on_right:
+            self.setCursor(Qt.SizeFDiagCursor)
+        elif on_left or on_right:
+            self.setCursor(Qt.SizeHorCursor)
+        elif on_top or on_bottom:
+            self.setCursor(Qt.SizeVerCursor)
+        else:
+            self.setCursor(Qt.ArrowCursor)
+        
+        super().mouseMoveEvent(event)
+    
+    def leaveEvent(self, event):
+        self.setCursor(Qt.ArrowCursor)
+        super().leaveEvent(event)
+    
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == event.Type.WindowStateChange:
+            self.update_border_radius()
+    
+    def update_border_radius(self):
+        window_color = QApplication.instance().palette().color(QPalette.Window)
+        if self.isMaximized():
+            self.central_container.setStyleSheet(f"""
+                #centralContainer {{
+                    background-color: {window_color.name()};
+                    border-radius: 0px;
+                }}
+            """)
+        else:
+            self.central_container.setStyleSheet(f"""
+                #centralContainer {{
+                    background-color: {window_color.name()};
+                    border-radius: 8px;
+                }}
+            """)
 
     def apply_system_theme(self):
         print("MainWindow.apply_system_theme: Applying system theme")
@@ -677,6 +856,9 @@ class MainWindow(QMainWindow):
         
         window_color = palette.color(QPalette.Window)
         text_color = palette.color(QPalette.WindowText)
+        
+        self.update_border_radius()
+        
         self.titleBar.setStyleSheet(f"""
             QWidget {{
                 background-color: {window_color.name()};
@@ -688,9 +870,11 @@ class MainWindow(QMainWindow):
             }}
             QPushButton:hover {{
                 background-color: rgba(128, 128, 128, 0.3);
+                border-radius: 4px;
             }}
             QPushButton#closeButton:hover {{
                 background-color: red;
+                border-radius: 4px;
             }}
         """)
 
